@@ -78,7 +78,7 @@ LLVM to produce, and test it to show that it solves the cycle problems.
 This test will also allow us to examine different characteristics of the
 proposed solution.
 
-Therefore this milestone is the same as [milestone 0](../m0/), but with
+Therefore this milestone is the same as [milestone 0](./m0/), but with
 the C program replaced with corresponding WebAssembly, and "compiled" by
 wabt's `wat2wasm` instead of by LLVM's `llc`.
 
