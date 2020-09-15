@@ -71,13 +71,12 @@ to fix in this effort, and milestone 1 indicates the problem.
 
 ## [Milestone 2: Re-express test.c as raw WebAssembly](./m2/)
 
-## Overview
-
 We would like to propose some language extensions to C and C++ to fix
-this problem.  To keep the discussion concrete, we will first show the
-kind of WebAssembly that we would like LLVM to produce, and test it to
-show that it solves the cycle problems.  This test will also allow us to
-examine different characteristics of the proposed solution.
+the cycle problem shown by milestone 1.  To keep the discussion
+concrete, we will first show the kind of WebAssembly that we would like
+LLVM to produce, and test it to show that it solves the cycle problems.
+This test will also allow us to examine different characteristics of the
+proposed solution.
 
 Therefore this milestone is the same as [milestone 0](../m0/), but with
 the C program replaced with corresponding WebAssembly, and "compiled" by
