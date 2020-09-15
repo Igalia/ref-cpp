@@ -1,5 +1,7 @@
 # Milestone 1: Cycles between WebAssembly and JavaScript are uncollectable
 
+[ previous: [m0](../m0/); next: [m2](../m2/) ]
+
 ## Overview
 
 This is the same as [m0](../m0/), but with the smallest of changes to

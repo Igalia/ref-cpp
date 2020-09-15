@@ -1,5 +1,7 @@
 # Milestone 2: Re-express test.c as raw WebAssembly test.wat
 
+[ previous: [m1](../m1/); next: [m3](../m3/) ]
+
 ## Overview
 
 In [Milestone 1](../m1/), we showed that using side tables and

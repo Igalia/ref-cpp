@@ -1,5 +1,7 @@
 # Milestone 4: Collectable cycle: WebAssembly allocates GC-managed memory
 
+[ previous: [m3](../m3/); next: [m5](../m5/) ]
+
 ## Overview
 
 Here we make progress!  In the previous milestones, we had a cycle of

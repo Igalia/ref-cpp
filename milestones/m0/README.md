@@ -1,5 +1,7 @@
 # Milestone 0: Finalizers clean up WebAssembly resources of JavaScript wrappers
 
+[ next: [m1](../m1/) ]
+
 ## Overview
 
 Here we define a basic C library which defines a simple `make_object`

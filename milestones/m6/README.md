@@ -1,5 +1,7 @@
 # Milestone 6: Collectable cycle: C allocates GC-managed memory
 
+[ previous: [m5](../m5/); next: [m7](../m7/) ]
+
 ## Overview
 
 This milestone represents a minimal solution to the cycle problem, but

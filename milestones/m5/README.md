@@ -1,5 +1,7 @@
 # Milestone 5: C manages side table of JavaScript objects
 
+[ previous: [m4](../m4/); next: [m6](../m6/) ]
+
 ## Overview
 
 Having shown where we're going and that milestone 4 solves the cycle

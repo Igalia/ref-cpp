@@ -1,5 +1,7 @@
 # Milestone 3: Move side table to WebAssembly
 
+[ previous: [m2](../m2/); next: [m4](../m4/) ]
+
 ## Overview
 
 In the previous milestones, the side table associating integer handles
