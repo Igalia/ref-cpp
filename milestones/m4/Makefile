@@ -15,7 +15,7 @@ spidermonkey.test: JS?=$(SPIDERMONKEY)
 	$(JS) $<
 
 test.wasm: test.o
-	$(LD) --no-entry --import-memory -o $@ $^
+	$(LD) --no-entry --allow-undefined --import-memory -o $@ $^
 
 test.o: test.wat
 	$(WAT2WASM) --enable-all --relocatable -o $@ $<

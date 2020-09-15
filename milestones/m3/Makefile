@@ -15,7 +15,7 @@ spidermonkey.test: JS?=$(SPIDERMONKEY)
 	$(JS) $<
 
 test.wasm: test.o walloc.o
-	$(LD) --no-entry --import-memory -o $@ $^
+	$(LD) --no-entry --allow-undefined --import-memory -o $@ $^
 
 walloc.o: walloc.c
 	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
