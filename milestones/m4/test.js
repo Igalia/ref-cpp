@@ -66,14 +66,14 @@ function test(n) {
     print(`${nalloc} total allocated.`);
 }
 
-function runTestLoop(n, f, ...args) {
+function runTestSyncLoop(n, f, ...args) {
     for (let i = 0; i < n; i++) {
         f(...args);
     }
 }
 
 function main() {
-    runTestLoop(1e2, test, 1e3);
+    runTestSyncLoop(1e2, test, 1e3);
     print(`Success.`);
 }
 main()
