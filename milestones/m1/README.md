@@ -2,7 +2,8 @@
 
 ## Overview
 
-This is the same as [m0](../m0/), but with this difference:
+This is the same as [m0](../m0/), but with the smallest of changes to
+[`test.js`](./test.js):
 
 ```diff
 --- ../m0/test.js	2020-09-14 13:27:24.924663561 +0200
@@ -35,6 +36,37 @@ practice, our example crashes because it runs out of linear memory.
 
 This is a simplified representation of the use case that we are trying
 to fix in this effort, and milestone 1 indicates the problem.
+
+## Details
+
+Running `make` will build `test.wasm` and run the test as in m0.  Note
+however that it fails with an out-of-memory error, and therefore that
+the default `test` target stops after `v8.test` fails.  You can verify
+that it fails with JSC via `make jsc.test`, and SpiderMonkey via `make
+spidermonkey.test`.
+
+An example run:
+
+```
+$ make v8.test
+~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o test.o test.c
+~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o walloc.o walloc.c
+~/src/llvm-project/build/bin/wasm-ld --no-entry --import-memory -o test.wasm test.o walloc.o
+~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc test.js
+Callback from [object Object] after 1 allocated.
+1000 total allocated, 1000 still live.
+Callback from [object Object] after 1001 allocated.
+2000 total allocated, 2000 still live.
+...
+55000 total allocated, 55000 still live.
+Callback from [object Object] after 55001 allocated.
+56000 total allocated, 56000 still live.
+Callback from [object Object] after 56001 allocated.
+57000 total allocated, 57000 still live.
+Callback from [object Object] after 57001 allocated.
+error: out of linear memory
+make: *** [Makefile:15: v8.test] Error 1
+```
 
 ## Results
 

@@ -29,6 +29,38 @@ e.g. calling `free` on allocations from linear memory.
 However, this test also shows that the finalizers interface has a number
 of pitfalls in practice.
 
+## Details
+
+The C test program is in [`test.c`](./test.c).  The associated
+JavaScript run-time and test harness is in [`test.js`](./test.js).
+
+The C test program needs a malloc implementation; we include
+[walloc](https://github.com/wingo/walloc) for that purpose.
+
+Run the tests via a simple `make` (though check the [getting started
+document](../getting-started.md) to make sure you have all the
+prerequisite environment variables set).  The default `test` target will
+run `v8.test`, `jsc.test`, and `spidermonkey.test`, which checks that
+our program runs under all engines.  An example run looks like:
+
+```
+$ make v8.test
+~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o test.o test.c
+~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o walloc.o walloc.c
+~/src/llvm-project/build/bin/wasm-ld --no-entry --import-memory -o test.wasm test.o walloc.o
+~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc test.js
+Callback after 1 allocated.
+1000 total allocated, 1000 still live.
+Callback after 1001 allocated.
+2000 total allocated, 1000 still live.
+...
+99000 total allocated, 1000 still live.
+Callback after 99001 allocated.
+100000 total allocated, 1000 still live.
+checking expected live object count: 0
+Success; max 1000 objects live.
+```
+
 ## Results
 
 ### Success on all JS engines

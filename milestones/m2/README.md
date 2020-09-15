@@ -21,6 +21,32 @@ The [test.wat](./test.wat) was originally produced by running wabt's
 `wasm2wat` on the result of compiling m1's (or m0's; they are the same)
 [test.c](../m1/test.c).  It was then cleaned up manually.
 
+## Details
+
+The difference from [m0](../m0) is that we translated the former
+[`test.c`](../m0/test.c) into [`test.wat`](./test.wat).
+
+Running `make` will build `test.wasm` and run the test as in m0.  An
+example run:
+
+```
+$ make v8.test
+~/src/wabt/out/gcc/Debug//wat2wasm --enable-all --relocatable -o test.o test.wat
+~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o walloc.o walloc.c
+~/src/llvm-project/build/bin/wasm-ld --no-entry --allow-undefined --import-memory -o test.wasm test.o walloc.o
+~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc test.js
+Callback after 1 allocated.
+1000 total allocated, 1000 still live.
+Callback after 1001 allocated.
+2000 total allocated, 1000 still live.
+...
+99000 total allocated, 1000 still live.
+Callback after 99001 allocated.
+100000 total allocated, 1000 still live.
+checking expected live object count: 0
+Success; max 1000 objects live.
+```
+
 ## Results
 
 ### Toolchain support for linking C and wat

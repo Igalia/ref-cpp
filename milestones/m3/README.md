@@ -20,6 +20,20 @@ For the rest, you can search the `test.wat` file for instances of
 an argument directly, and handles "interning" it into the object table
 without involving JavaScript.
 
+## Details
+
+The difference from [m2](../m2) is that we moved the side-table
+implementation into [`test.wat`](./test.wat) and removed it from
+[`test.js`](./test.js).
+
+This is the first example in which WebAssembly handles externref values,
+so the [`Makefile`](./Makefile) arranges to enable the appropriate
+feature flags in the various engines.
+
+Running `make` will try to build `test.wasm` and run the test as in m2;
+however, there is a linking error so we can't actually run this test.
+See below.
+
 ## Results
 
 ### Handle and side-table mechanism implemented in terms of externref

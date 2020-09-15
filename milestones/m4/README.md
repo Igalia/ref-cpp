@@ -20,6 +20,48 @@ occasionally need a side table for references to GC-managed data from
 C++.  Such handles can refer to any member of a cycle, as long as the
 holder of the handle doesn't participate in a cycle.
 
+## Details
+
+The difference from [m3](../m3) is that we made [`test.wat`](./test.wat)
+call out to the new `gc_alloc` routines from [`test.js`](./test.js).
+The [`test.js`](./test.js) is also more trim, as it doesn't need
+finalizer support.
+
+Incidentally, as the test doesn't actually need linear memory, we don't
+need to build in a malloc implementation.
+
+Running `make` will build `test.wasm` and run the test as in m3.  The
+reporting is a bit different, though, as we don't have the live-object
+telemetry provided by finalizers.
+
+```
+~/src/wabt/out/gcc/Debug//wat2wasm --enable-all --relocatable -o test.o test.wat
+~/src/llvm-project/build/bin/wasm-ld --no-entry --allow-undefined --import-memory -o test.wasm test.o
+~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc --experimental-wasm-reftypes test.js
+Callback after 1 allocated.
+1000 total allocated.
+Callback after 1001 allocated.
+2000 total allocated.
+...
+Callback after 98001 allocated.
+99000 total allocated.
+Callback after 99001 allocated.
+100000 total allocated.
+Success.
+```
+
+Note however that the program doesn't work in JavaScriptCore; see the
+results below for details.
+
+```
+$ make jsc.test
+~/webkit/WebKitBuild/Release/bin/jsc --useWeakRefs=true --useWebAssemblyReferences=true test.js
+Exception: CompileError: WebAssembly.Module doesn't validate: I32RemS right value type mismatch, in function at index 0 (evaluating 'new WebAssembly.Module(bytes)')
+Module@[native code]
+global code@test.js:54:33
+make: *** [Makefile:15: jsc.test] Error 3
+```
+
 ## Results
 
 ### Heap provided by GC-capable host

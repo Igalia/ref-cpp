@@ -9,6 +9,13 @@ LLVM compiler.  As a first step in this direction, we're going to
 translate milestone 3's test program back to an extended version of C
 that has rudimentary support for reference types.
 
+## Details
+
+The difference from [m3](../m3) is that instead of
+[`test.wat`](../m3/test.wat), we have [`test.c`](./test.c).
+
+Running `make` will build `test.wasm` and run the test as in m3.
+
 ## Results
 
 No results yet; this milestone is in progress.
