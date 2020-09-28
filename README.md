@@ -152,9 +152,9 @@ I.e., don't create cycles at all.
 We would note firstly that this is an easy thing to say, but a hard
 thing to put in practice, essentially because it's hard to know when a
 closure introduces a cycle
-[1](./milestones/m0#reasoning-about-objects-referenced-from-closures-is-unspecified)
-[2](./milestones/m0#spidermonkey-retains-too-much-data-for-closures-within-in-async-functions)
-[3](./milestones/m1#cycles-are-easier-to-make-than-one-might-think).
+[[1]](./milestones/m0#reasoning-about-objects-referenced-from-closures-is-unspecified)
+[[2]](./milestones/m0#spidermonkey-retains-too-much-data-for-closures-within-in-async-functions)
+[[3]](./milestones/m1#cycles-are-easier-to-make-than-one-might-think).
 
 However, assuming omniscient programmers, in our context this could mean
 making the item in the JS side table referencing a JS object on behalf
