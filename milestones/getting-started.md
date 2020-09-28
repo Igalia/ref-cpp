@@ -82,11 +82,6 @@ loading into a JavaScript shell.  Check it out and build it:
 cd $SRC
 git clone --recursive https://github.com/WebAssembly/wabt
 cd wabt
-# We need some experimental work that hasn't landed yet.  We'll
-# fetch that from a special integration branch.
-git remote add wingo https://github.com/wingo/wabt
-git fetch wingo
-git checkout integration
 make -j40 gcc-release
 ```
 

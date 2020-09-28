@@ -65,7 +65,6 @@ intended for this purpose, but it had a few bugs that made it unusable.
 These were fixed in
 [#1535](https://github.com/WebAssembly/wabt/pull/1535),
 [#1537](https://github.com/WebAssembly/wabt/pull/1537), and
-[#1539](https://github.com/WebAssembly/wabt/pull/1539); the [getting
-started instructions](../getting-started.md) specify building wabt from
-an [integration branch](https://github.com/wingo/wabt/tree/integration)
-that has all of these bug-fixes applied.
+[#1539](https://github.com/WebAssembly/wabt/pull/1539) from us, and
+[#1527](https://github.com/WebAssembly/wabt/pull/1527) from an external
+contributor.  All of these changes are now in the main upstream branch.

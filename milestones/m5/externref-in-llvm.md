@@ -11,12 +11,12 @@ value in LLVM.  They can't be stored to linear memory at all -- not to
 the heap, not to data, not to the external stack.
 
 WebAssembly has its own *internal* stack, of course, consisting of local
-variables and temporary values inside function activations.  There, we
-can have externref values, flowing into functions as parameters, out as
-results, and within as mutable locals and ephemeral temporaries.  But
-when compiling C++, we often find that a function needs to allocate with
-automatic duration, and that goes out to the *external* stack in linear
-memory.  Externrefs can't go there.
+variables and ephemeral temporary values inside function activations.
+There, we can have externref values, flowing into functions as
+parameters, out as results, and within as mutable locals and ephemeral
+temporaries.  But when compiling C++, we often find that a function
+needs to allocate with automatic duration, and that goes out to the
+*external* stack in linear memory.  Externrefs can't go there.
 
 Externrefs can't be created by a WebAssembly program; they can only be
 passed into it from the outside.  This can happen in four ways:
@@ -67,7 +67,7 @@ Consider:
 ```c
 struct a { int32_t b; externref c; };
 
-struct a *a = malloc(sizeof a); // What is a->c ?
+struct a *a = malloc(sizeof struct a); // What is a->c ?
 a->b = 42;
 a->c = get_foo(); // Error!
 ```
@@ -92,8 +92,8 @@ Let's take another look at the first example.  If we were working with
 ```c
 int foo(void);
 int bar(void) {
-  int ret = foo();
-  return ret;
+  int value = foo();
+  return value;
 }
 ```
 
@@ -113,10 +113,10 @@ define i32 @bar() {
 ```
 
 What we can see is that the clang frontend will `alloca` some bytes for
-each local.  Initializing `ret` stores a value to that location, and
-referencing `ret` performs the corresponding memory load.  Clang relies
-on the LLVM optimizer to turn these memory operations into SSA values
-that don't need memory (the
+each local.  Initializing `value` stores a value to that location, and
+referencing `value` performs the corresponding memory load.  Clang
+relies on the LLVM optimizer to turn these memory operations into SSA
+values that don't need memory (the
 [mem2reg](https://llvm.org/docs/Passes.html#mem2reg-promote-memory-to-register)
 pass).
 
@@ -126,8 +126,8 @@ externref values.  If we assume an `externref` type, and we have:
 ```c
 externref foo(void);
 externref bar(void) {
-  externref ret = foo();
-  return ret;
+  externref value = foo();
+  return value;
 }
 ```
 
@@ -243,14 +243,27 @@ declare %externref @foo()
 define %externref @bar() {
   %1 = alloca %indirect_externref
   %2 = call %externref @foo()
+
+  ; Intern the raw externref %2 to the externref table.
   %3 = call i32 @externref_alloca()
   call @externref_store(%3, %2)
+
+  ; Treat the index into the externref table as a pointer.
+  ; This is the visible-to-C value of the externref.
   %4 = bitcast i32 %3 to %indirect_externref
+
+  ; Since clang put this local on the stack, write it there.
   store %indirect_externref %4, %indirect_externref* %1
+
+  ; To reference the local, load it from the stack.
   %5 = load %indirect_externref, %indirect_externref* %1
+
+  ; In this example, functions take and return raw externref
+  ; values, so strip the indirection, freeing the table slot.
   %6 = bitcast %indirect_externref %5 to i32
   %7 = call @externref_load(%6)
   call @externref_freea()
+
   ret %externref %7
 }
 ```
@@ -263,14 +276,14 @@ listing.
     that the raw externref values themselves are also indirected into
     their own heap.
 
- 2. Unlike `alloca`, we need to insert explicit `wasm_freea` calls on
-    exit paths, and presumably on unwinds as well.
+ 2. Unlike `alloca`, we need to insert explicit `externref_freea` calls
+    on exit paths, and presumably on unwinds as well.
 
  3. There are three types here; we need the "opaque" type to indicate
     that %indirect_externref values can't be usefully dereferenced.
 
  4. For heap data with dynamic duration, it's not immediately clear
-    where the compiler should insert `wasm_free` calls.
+    where the compiler should insert `externref_free` calls.
 
  5. You can do pointer arithmetic on %indirect_externref values.  This
     is not a good thing!
@@ -286,32 +299,43 @@ listing.
 ### Idea 2: Restrictions and builtins
 
 Let's back up here a bit.  WebAssembly has instructions to operate on
-the linear heap, and (with reference types) on tables.  LLVM treats C
-pointers as denoting locations on the linear heap; there is very little
+the linear heap, like `i32.load` and `i8.store`.  You could imagine a
+compilation strategy whereby LLVM expected user programs to include
+builtin calls every time they accessed linear memory; a load would be a
+call to `__builtin_wasm_i32_load(i32 offset)`, stores via
+`__builtin_wasm_i8_store(i32 offset, i8 val)`, and so on.  But that
+would be silly.  Instead, LLVM treats C pointers as denoting locations
+on the linear heap, and the compiler arranges to emit `i32.load`,
+`i8.store`, and so on for pointer access.  There is very little
 impedance mismatch here betwen C, LLVM, and WebAssembly.
 
-But with tables, why would we want to use pointers to denote externrefs?
-We can't dereference the pointers, and arithmetic makes no sense.  The
-externref values we're pointing to don't have a linear representation,
-and it seems like clang's need to `alloca` local variable storage is a
-tail-wagging-the-dog situation: it is what is causing us problems.
+With reference types, WebAssembly now also has instructions to operate
+on tables, which are a kind of heap, but for externrefs.  The "indirect"
+strategy above tries to treat table access as pointers, in analogy to
+how access to the linear heap is compiled.  But does it make sense to
+take this approach?  We can't dereference the pointers, and arithmetic
+makes no sense.  The externref values we're pointing to don't have a
+linear representation, and it seems like clang's need to `alloca` local
+variable storage is a tail-wagging-the-dog situation: it is what is
+causing us problems.
 
 What if, instead, we treat externrefs as a new class of value.  There is
 no code out there that uses them right now, so this is an option open to
 us.  You can't take their address, you can't dereference them, in fact
 you can't do anything on them other than use them as function
 parameters, return values, and locals.  They have nothing to do with
-tables.
+tables, so forcing them to be a pointer to a table seems a needless
+complication.
 
 With this approach, if we wanted to store an externref value to a
 table, we'd call a builtin to do so.  If we need the null value, we call
 a builtin.
 
-If we need to store an externref to the heap -- well, you just can't do
-that.  It's a restriction.  We require the user program to build its own
-side table if needed.  We'd need explicit support in the compiler for
-working with tables, so that the user could implement their side table,
-but that's fine.
+If we need to store an externref to the (linear) heap -- well, you just
+can't do that.  It's a restriction.  We require the user program to
+build its own side table if needed.  We'd need explicit support in the
+compiler for working with tables, so that the user could implement their
+side table, but that's fine.
 
 There is an open question about how we would represent raw externref
 values in LLVM, but we also have that issue with the indirect strategy,

@@ -114,5 +114,5 @@ void WASM_EXPORT(attach_callback)(struct obj* obj, externref callback) {
 }
 
 void WASM_EXPORT(invoke_callback)(struct obj* obj) {
-  invoke(handle_balue(obj->callback_handle));
+  invoke(handle_value(obj->callback_handle));
 }
