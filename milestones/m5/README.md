@@ -11,7 +11,7 @@ LLVM compiler.  As a first step in this direction, we're going to
 translate milestone 3's test program back to an extended version of C
 that has rudimentary support for reference types.
 
-See the [Externref and LLVM](./externref-and-llvm.md) design document
+See the [Externref in LLVM](./externref-in-llvm.md) design document
 for the high-level overview on how we are going to extend LLVM to
 support `externref`.
 
