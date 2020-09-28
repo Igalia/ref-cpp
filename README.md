@@ -150,8 +150,8 @@ The first conventional solution to the problem is "don't do that".
 I.e., don't create cycles at all.
 
 We would note firstly that this is an easy thing to say, but a hard
-thing to put in practice, essentially because it's hard to know when a
-closure introduces a cycle
+thing to put in practice.  It is especially hard to know when a closure
+introduces a cycle
 [[1]](./milestones/m0#reasoning-about-objects-referenced-from-closures-is-unspecified)
 [[2]](./milestones/m0#spidermonkey-retains-too-much-data-for-closures-within-in-async-functions)
 [[3]](./milestones/m1#cycles-are-easier-to-make-than-one-might-think).
@@ -580,7 +580,7 @@ ref class Foo {};
 ```
 
 We say that `Foo` is a *reference type*, or a *ref class*.  If we need
-to make the distinction, we can call "normal" classes *linear classes".
+to make the distinction, we can call "normal" classes *linear classes*.
 
 All subclasses of a ref class must themselves be declared using `ref
 class`.  This makes it clear to the programmer which classes are
