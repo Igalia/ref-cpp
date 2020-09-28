@@ -43,11 +43,10 @@ WebAssembly.
 
 What you can do is maintain a side table on the JavaScript side
 associating JavaScript objects used by WebAssembly with small integer
-identifiers (`i32` values), along with a refcount.  Then a C++ function
-that takes a JavaScript object as an argument can take it as an `i32`
-index into that side table.  When C++ is finished with a JS value, it
-decreases its refcount, and when the refcount drops to zero, it is
-removed from the side table.
+identifiers (`i32` values).  Then a C++ function that takes a JavaScript
+object as an argument can take it as an `i32` index into that side
+table.  When C++ is finished with a JS value, it calls into JavaScript
+to let it know that the side table entry can be re-used.
 
 To be concrete, here is a minimal implementation of the side table, with
 WebAssembly as it exists today:
@@ -58,8 +57,7 @@ WebAssembly as it exists today:
   __attribute__((import_name(#name))) \
   name
 
-void WASM_IMPORT(add_ref)(int32_t handle_id);
-void WASM_IMPORT(dec_ref)(int32_t handle_id);
+void WASM_IMPORT(release)(uint32_t handle_id);
 ```
 
 The annotations tell LLVM that these functions will be imported from the
@@ -70,10 +68,8 @@ that C++ keeps the JS object alive as long as it needs:
 class Handle {
   int32_t id_;
  public:
-  explicit Handle(int32_t id) : id_(id) {
-    add_ref(id_);
-  }
-  ~Handle() { dec_ref(id_); }
+  explicit Handle(int32_t id) : id_(id) {}
+  ~Handle() { release(id_); }
 }
 ```
 
@@ -81,29 +77,42 @@ Then when you instantiate the WebAssembly module from JavaScript, you
 provide the run-time support in the form of an imports object:
 
 ```js
-let table = [];
-function assert(b) {
-  if (!b) {
-    throw new AssertionError('assertion failed');
-  }
-}
-function lookup(id) {
-  let x = table[x];
-  assert(x === undefined);
-  return x;
-}
-function intern(object) {
-  let id = table.length;
-  table[id] = object;
-  return id;
-}
-let imports = {
-  'add_ref': id => { lookup(id).refCount++; },
-  'dec_ref': id => {
-    if (--lookup(id).refCount == 0) {
-      delete table[id];
+class ObjectTable {
+    constructor() {
+        this.objects = [];
+        this.freelist = [];
     }
-  },
+    expand() {
+        let len = this.objects.length;
+        let grow = (len >> 1) + 1;
+        let end = len + grow;
+        this.objects.length = end;
+        while (end != len)
+            this.freelist.push(--end);
+    }
+    intern(obj) {
+        if (!this.freelist.length)
+            this.expand();
+        let handle = this.freelist.pop();
+        this.objects[handle] = obj;
+        return handle;
+    }
+    release(handle) {
+        this.objects[handle] = null;
+        this.freelist.push(handle);
+    }
+    count() {
+        return this.objects.length - this.freelist.length;
+    }
+    ref(handle) {
+        return this.objects[handle];
+    }
+}
+
+let table = new ObjectTable;
+
+let imports = {
+  release: handle => table.release(handle),
 };
 let bytes = fetch("https://example.com/data-provider.wasm");
 let mod = WebAssembly.instantiateStreaming(bytes, { imports });
@@ -117,35 +126,66 @@ would be an `i32` identifier that might indicate an offset into linear
 memory.  When JavaScript is done with that resource, it would need to
 call into WebAssembly to "free" the resource.
 
+*For a complete working example of this pattern, see [Milestone
+0](./milestones/m0/).*
+
 This strategy works well until you have a cycle.  In that case, the JS
 code referencing WebAssembly will not be collected because the
-WebAssembly reference to JS is via a refcount.
+WebAssembly reference to JS is via a side table, effectively via a
+reference count.
 
 In short, when WebAssembly and JavaScript reference each other, we have
 a classic problem: cycles in graphs of reference-counted objects cause
 memory leaks.
 
+*In [Milestone 1](./milestones/m1/), we show that a simple change to
+milestone 0 introduces a cycle, indeed causing memory leaks and
+ultimately causing the program to crash.*
+
 ### Conventional solutions
 
+#### Idea 1: Use weak refs to break cycles
+
 The first conventional solution to the problem is "don't do that".
-I.e., don't create cycles at all.  In our context this could mean making
-the item in the JS side table referencing a JS object on behalf of
-WebAssembly to be a *weak reference*.  Since the WebAssembly-to-JS
+I.e., don't create cycles at all.
+
+We would note firstly that this is an easy thing to say, but a hard
+thing to put in practice, essentially because it's hard to know when a
+closure introduces a cycle
+[1](./milestones/m0#reasoning-about-objects-referenced-from-closures-is-unspecified)
+[2](./milestones/m0#spidermonkey-retains-too-much-data-for-closures-within-in-async-functions)
+[3](./milestones/m1#cycles-are-easier-to-make-than-one-might-think).
+
+However, assuming omniscient programmers, in our context this could mean
+making the item in the JS side table referencing a JS object on behalf
+of WebAssembly to be a *weak reference*.  Since the WebAssembly-to-JS
 reference is no longer strong, the JavaScript side is alive only as long
 as some live JS object references it.  When the JavaScript side becomes
 collectable, the JS object will be collected, which might trigger a
 [finalizer](https://tc39.es/proposal-weakrefs/) to to clean up the
 WebAssembly side.
 
-This solution works but has a bit of overhead with the finalizers, and
-is not robust.  The programmer has to reason globally about cycles.
-This becomes difficult when different teams are responsible for
-different parts of the object graph.  One nice aspect about
-garbage-collection is that it is a cross-cutting solution that doesn't
-require global coordination among different programming teams in order
-to prevent memory leaks; we would be replacing a global guaranteed
-system invariant with the need for periodic global reasoning.  This can
-work occasionally but it is not a scalable way to build a system.
+This solution works in a way but is not is not robust.  Premature
+out-of-memory (OOM) is still quite possible even for "perfect" programs:
+
+ 1. [because the JavaScript garbage collector doesn't know about wasm allocations](./milestones/m0#gc-doesnt-run-often-enough)
+ 2. [because finalizers are allowed to run late](./milestones/m0#permissibly-late-finalization-can-cause-out-of-memory)
+ 3. [because finalizers can't run too early](./milestones/m0#users-need-to-be-careful-to-yield-to-allow-finalization-to-happen)
+
+We focus on finalizers here, but weak references are also subject to
+similar timing issues.
+
+Furthermore, adopting the weak-ref approach forces the programmer to
+reason globally about cycles.  This becomes difficult when different
+teams are responsible for different parts of the object graph.  One nice
+aspect about garbage-collection is that it is a cross-cutting solution
+that doesn't require global coordination among different programming
+teams in order to prevent memory leaks; we would be replacing a global
+guaranteed system invariant with the need for periodic global reasoning.
+This can work occasionally but it is not a scalable way to build a
+system.
+
+#### Idea 2: WebAssembly program exposes hooks to system GC
 
 Another conventional solution would be to integrate the inter-object
 edges contained in the reference-counted part of the graph with garbage
@@ -155,10 +195,12 @@ garbage collector.  However, garbage collectors in JavaScript would be
 loathe to expose this interface to the web, which is effectively what
 you'd be doing if you went down this route.
 
+#### Idea 3: User application allocates GC-managed memory
+
 The third solution would be to forgo reference-counting for the parts of
 your object graph that might have cycles with garbage-collected objects.
 Instead, you make that part of the graph also managed by the garbage
-collector.  That is the approach we are going to take here:  define a
+collector.  That is the approach we are going to take here: define a
 facility to allow C++ to allocate data on the garbage-collected heap.
 For good usability, we will also extend C++ to allow a subset of C++
 types to allocate their instances using these new garbage-collected
@@ -241,19 +283,26 @@ used to be called `anyref`, and which has recently been renamed
 `externref`.  It's essentially a new value type, indicating a reference
 to a value from the "host" -- in our case, a JS value.  Functions can
 take refs as arguments and return them as results, and refs can be local
-variables.  However: refs cannot be stored to linear memory.  Instead,
-they can be stored to *tables*.  Tables are arrays that are statically
-declared to be part of a module, and have items of uniform type.  With
-reference types, you can have a table of `externref`, allowing us to
-move the side-table implementation from JS to WebAssembly.
+variables, or indeed global variables.  However: refs cannot be stored
+to linear memory.  Instead, they can be stored to *tables*.  Tables are
+arrays that are statically declared to be part of a module, and have
+items of uniform type.  With reference types, you can have a table of
+`externref`, allowing us to move the side-table implementation from JS
+to WebAssembly.
 
 There is a problem though: how would you represent a value in C++ that
 can be a local variable or a function parameter or result, but which
 can't be stored in the heap?
 
 This is an ongoing problem.  [LLVM support hasn't landed
-yet](https://reviews.llvm.org/D66035).  It's part of our deliverables
-for the year and this needs work.
+yet](https://reviews.llvm.org/D66035).  It's part of our work items for
+the year and this needs work.
+
+*In the mean-time, to further the discussion, [Milestone
+2](./milestones/m2/) translates our example C program to raw
+WebAssembly.  [Milestone 3](./milestones/m3) then moves the side table
+from the JS runtime to WebAssembly.  We are still actively working on
+figuring out how to produce this WebAssembly from LLVM.*
 
 We'll get to a design and implementation plan later in this document,
 but for now assume that LLVM will support a magical `externref` type
@@ -272,10 +321,10 @@ memory.
 
 ## The basic idea: instances of some C++ classes are managed by GC
 
-Let's return to the reference-cycle problem.  Whether the side table of
-references from WebAssembly to JS is managed on the JS side, as it is
-now, or on the WebAssembly side, as it may be with LLVM+`externref`, we
-still have the problem of reference-counting cycles.
+Let's return to the cycle problem.  Whether the side table of references
+from WebAssembly to JS is managed on the JS side, as it is now, or on
+the WebAssembly side, as it may be with LLVM+`externref`, we still have
+the problem of reference-counting cycles.
 
 We would like to solve this by making every object participating in the
 cycle to be traced by the GC.  If every object in a cycle is GC-traced,
@@ -330,10 +379,38 @@ let imports = {
 };
 ```
 
-We'll add annotations to user-defined C++ types that are to be GC
-managed, and arrange for the compiler to allocate their instances and
-allocate their members via the imports defined above.  The language
-extension is defined in more detail below, but it looks like this:
+### Raw WebAssembly proof-of-concept
+
+[Milestone 4](./milestones/m4/) implements this proof of concept.  As
+we don't yet have a compiler from C to WebAssembly that supports
+`externref`, this example is written directly in WebAsembly.
+
+Already, this proof-of-concept shows some interesting results.  One is
+the existence proof that [JS can provide a GC-managed heap for C and C++
+allocations](./milestones/m4#heap-provided-by-gc-capable-host).
+
+Another result is that because GC-managed objects need no finalizers,
+there is [no need to force programs to "yield" to allow finalizers to
+run](./milestones/m4#no-need-to-break-up-main-loop-into-async-function).
+
+Interestingly, we also find that [allocating C/C++ objects on GC heap
+can have higher performance than linear memory plus
+finalizers](./milestones/m4#lower-run-time-overhead-than-m0).
+
+Finally we note that [the resulting system will be faster with the full
+GC proposal](./milestones/m4#path-towards-gc-proposal), when it is no
+longer necessary to call out to JavaScript for object allocation and
+access.
+
+### GC and C++ integration
+
+Having proven that such a system can work well on the low-level, we
+would like to target C++.  If we assume that LLVM has basic support for
+externref, then what we'd like to do is to add annotations to
+user-defined C++ types that are to be GC managed, and arrange for the
+compiler to allocate their instances and allocate their members via the
+imports defined above.  The language extension is defined in more detail
+below, but it looks like this:
 
 ```c++
 template<typename T>
@@ -357,20 +434,28 @@ ref class Stack {
 };
 ```
 
-Now if you're like us, you're cringing a bit: there's a language
-extension, and there's this weird calling out to JS thing.  We'll
-discuss the language extension in a minute, but the JS callout is just
-during the prototype phase.  In the future, [WebAssembly will be able to
-define, allocate, and access GC-managed struct types without calling out
-to
-imports](https://github.com/WebAssembly/gc/blob/master/proposals/gc/Overview.md).
-This will take some time, though, and in the meantime there is important
-work to do to get ready for this future; using `externref` and call-outs
-to JS is a prototyping strategy.  We proved in the [the Schism Scheme
-compiler](https://github.com/google/schism/pull/72) that this approach
-works fine and solves the reference-cycle problem; what we need now is
-to work on the C++ language design and corresponding LLVM
-implementation.
+Now if you're like us, you're cringing a bit: it's one thing to propose
+some new primitives to allow C++ to allocate GC-managed memory, but it's
+another to propose an entire language extension.  The rest of this
+document discusses the feasibility of the language extension, but we
+should keep in mind the points that our initial investigations have
+shown:
+
+ 1. Systems with WebAssembly and JS should handle cycles
+ 2. Doing so with finalizers and weak references poses robustness problems
+ 3. Allocating GC-managed memory from WebAssembly is possible
+ 4. Allocating cycle-participating objects in GC-managed memory solves
+    the cycle problem and has acceptable performance, even in the
+    prototype phase
+ 5. There is the prospect in the medium-term of [WebAssembly being able
+    to define, allocate, and access GC-managed struct types without
+    calling out to
+    imports](https://github.com/WebAssembly/gc/blob/master/proposals/gc/Overview.md),
+    which would result in a high-performance system.
+
+The attractiveness of a comprehensive, high-performance solution to the
+cycle problem is such that it motivates us to imagine what a language
+extension would look like, and how we could implement it.
 
 ## Inspiration: C++/CLI
 
