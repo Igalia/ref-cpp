@@ -3,6 +3,7 @@ LD?=wasm-ld
 V8?=d8
 JSC?=jsc
 SPIDERMONKEY?=js
+WAT2WASM?=wat2wasm
 
 all: v8.test jsc.test spidermonkey.test
 

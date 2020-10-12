@@ -14,7 +14,7 @@ the end you should be able to run these commands:
 $LLVM/llc --version
 $CC --version
 $LD --version
-$WABT/wat2wasm --version
+$WAT2WASM --version
 $D8 -h
 $JSC -h
 $SPIDERMONKEY -h

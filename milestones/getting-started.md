@@ -85,14 +85,14 @@ cd wabt
 make -j40 gcc-release
 ```
 
-Then set `WABT`:
+Then set `WAT2WASM`:
 
 ```
-export WABT=$SRC/wabt/out/gcc/Release
+export WAT2WASM=$SRC/wabt/out/gcc/Release/wat2wasm
 ```
 
-You can check that everything is fine by running `$WABT/wat2wasm
---version`, which should print a version.
+You can check that everything is fine by running `$WAT2WASM --version`,
+which should print a version.
 
 ## A JavaScript shell
 
@@ -143,7 +143,7 @@ export SRC=~/src
 export LLVM=$SRC/llvm-project/build/bin
 export CC=$LLVM/clang
 export LD=$LLVM/wasm-ld
-export WABT=$SRC/wabt/out/gcc/Release
+export WAT2WASM=$SRC/wabt/out/gcc/Release/wat2wasm
 export V8=$SRC/v8/out/x64.release/d8
 export SPIDERMONKEY=$SRC/mozilla-unified/+js-release/dist/bin/js
 export JSC=$SRC/webkit/WebKitBuild/Release/bin/jsc

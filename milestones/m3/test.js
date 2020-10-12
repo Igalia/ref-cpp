@@ -95,7 +95,7 @@ class WasmObject {
 
 let bytes = readBinaryFile("test.wasm");
 let mod = new WebAssembly.Module(bytes);
-let memory = new LinearMemory({ initial: 2, maximum: 20 });
+let memory = new LinearMemory({ initial: 2, maximum: 10 });
 let rt = { release, invoke, out_of_memory };
 let imports = { env: memory.env(), rt }
 let instance = new WebAssembly.Instance(mod, imports);
