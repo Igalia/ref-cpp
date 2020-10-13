@@ -79,7 +79,7 @@ enum chunk_kind {
 #undef DEFINE_SMALL_OBJECT_CHUNK_KIND
 
   SMALL_OBJECT_CHUNK_KINDS,
-  FREE_CHUNK = 254,
+  FREE_LARGE_OBJECT = 254,
   LARGE_OBJECT = 255
 };
 
@@ -109,9 +109,9 @@ static unsigned chunk_kind_to_granules(enum chunk_kind kind) {
 
 // Given a pointer P returned by malloc(), we get a header pointer via
 // P&~PAGE_MASK, and a chunk index via (P&PAGE_MASK)/CHUNKS_PER_PAGE.  If
-// chunk_kinds[chunk_idx] is LARGE_OBJECT, then the pointer is a large object,
-// otherwise the kind indicates the size in granules of the objects in the
-// chunk.
+// chunk_kinds[chunk_idx] is [FREE_]LARGE_OBJECT, then the pointer is a large
+// object, otherwise the kind indicates the size in granules of the objects in
+// the chunk.
 struct page_header {
   uint8_t chunk_kinds[CHUNKS_PER_PAGE];
 };
@@ -194,10 +194,71 @@ allocate_pages(size_t payload_size, size_t *n_allocated) {
 }
 
 static char*
-allocate_chunk(struct page *page, unsigned idx, enum chunk_kind kind)
-{
+allocate_chunk(struct page *page, unsigned idx, enum chunk_kind kind) {
   page->header.chunk_kinds[idx] = kind;
   return page->chunks[idx].data;
+}
+
+// It's possible for splitting to produce a large object of size 248 (256 minus
+// the header size) -- i.e. spanning a single chunk.  In that case, push the
+// chunk back on the GRANULES_32 small object freelist.
+static void maybe_repurpose_single_chunk_large_objects_head(void) {
+  if (large_objects->size < CHUNK_SIZE) {
+    unsigned idx = get_chunk_index(large_objects);
+    char *ptr = allocate_chunk(get_page(large_objects), idx, GRANULES_32);
+    large_objects = large_objects->next;
+    struct freelist* head = (struct freelist *)ptr;
+    head->next = small_object_freelists[GRANULES_32];
+    small_object_freelists[GRANULES_32] = head;
+  }
+}
+
+// If there have been any large-object frees since the last large object
+// allocation, go through the freelist and merge any adjacent objects.
+static int pending_large_object_compact = 0;
+static struct large_object**
+maybe_merge_free_large_object(struct large_object** prev) {
+  struct large_object *obj = *prev;
+  while (1) {
+    char *end = get_large_object_payload(obj) + obj->size;
+    ASSERT_ALIGNED((uintptr_t)end, CHUNK_SIZE);
+    unsigned chunk = get_chunk_index(end);
+    if (chunk < FIRST_ALLOCATABLE_CHUNK) {
+      // Merging can't create a large object that newly spans the header chunk.
+      // This check also catches the end-of-heap case.
+      return prev;
+    }
+    struct page *page = get_page(end);
+    if (page->header.chunk_kinds[chunk] != FREE_LARGE_OBJECT) {
+      return prev;
+    }
+    struct large_object *next = (struct large_object*) end;
+
+    struct large_object **prev_prev = &large_objects, *walk = large_objects;
+    while (1) {
+      ASSERT(walk);
+      if (walk == next) {
+        obj->size += LARGE_OBJECT_HEADER_SIZE + walk->size;
+        *prev_prev = walk->next;
+        if (prev == &walk->next) {
+          prev = prev_prev;
+        }
+        break;
+      }
+      prev_prev = &walk->next;
+      walk = walk->next;
+    }
+  }
+}
+static void
+maybe_compact_free_large_objects(void) {
+  if (pending_large_object_compact) {
+    pending_large_object_compact = 0;
+    struct large_object **prev = &large_objects;
+    while (*prev) {
+      prev = &(*maybe_merge_free_large_object(prev))->next;
+    }
+  }
 }
 
 // Allocate a large object with enough space for SIZE payload bytes.  Returns a
@@ -213,15 +274,16 @@ allocate_chunk(struct page *page, unsigned idx, enum chunk_kind kind)
 // object.
 static struct large_object*
 allocate_large_object(size_t size) {
+  maybe_compact_free_large_objects();
   struct large_object *best = NULL, **best_prev = &large_objects;
   size_t best_size = -1;
-  for (struct large_object *prev = NULL, *walk = large_objects;
+  for (struct large_object **prev = &large_objects, *walk = large_objects;
        walk;
-       prev = walk, walk = walk->next) {
+       prev = &walk->next, walk = walk->next) {
     if (walk->size >= size && walk->size < best_size) {
       best_size = walk->size;
       best = walk;
-      if (prev) best_prev = &prev->next;
+      best_prev = prev;
       if (best_size + LARGE_OBJECT_HEADER_SIZE
           == align(size + LARGE_OBJECT_HEADER_SIZE, CHUNK_SIZE))
         // Not going to do any better than this; just return it.
@@ -249,6 +311,8 @@ allocate_large_object(size_t size) {
     ASSERT(best_size >= size_with_header);
   }
 
+  allocate_chunk(get_page(best), get_chunk_index(best), LARGE_OBJECT);
+
   struct large_object *next = best->next;
   *best_prev = next;
 
@@ -269,14 +333,17 @@ allocate_large_object(size_t size) {
       ASSERT_ALIGNED((uintptr_t)end, PAGE_SIZE);
       size_t first_page_size = PAGE_SIZE - (((uintptr_t)start) & PAGE_MASK);
       struct large_object *head = best;
+      allocate_chunk(start_page, get_chunk_index(start), FREE_LARGE_OBJECT);
       head->size = first_page_size;
       head->next = large_objects;
       large_objects = head;
 
+      maybe_repurpose_single_chunk_large_objects_head();
+
       struct page *next_page = start_page + 1;
       char *ptr = allocate_chunk(next_page, FIRST_ALLOCATABLE_CHUNK, LARGE_OBJECT);
       best = (struct large_object *) ptr;
-      best->size = best_size = best_size - first_page_size - CHUNK_SIZE;
+      best->size = best_size = best_size - first_page_size - CHUNK_SIZE - LARGE_OBJECT_HEADER_SIZE;
       ASSERT(best_size >= size);
       start = get_large_object_payload(best);
       tail_size = (best_size - size) & ~CHUNK_MASK;
@@ -301,25 +368,35 @@ allocate_large_object(size_t size) {
     
     if (tail_size) {
       struct page *page = get_page(end - tail_size);
-      char *tail_ptr = allocate_chunk(page, tail_idx, LARGE_OBJECT);
+      char *tail_ptr = allocate_chunk(page, tail_idx, FREE_LARGE_OBJECT);
       struct large_object *tail = (struct large_object *) tail_ptr;
       tail->next = large_objects;
       tail->size = tail_size - LARGE_OBJECT_HEADER_SIZE;
       ASSERT_ALIGNED((uintptr_t)(get_large_object_payload(tail) + tail->size), CHUNK_SIZE);
       large_objects = tail;
+
+      maybe_repurpose_single_chunk_large_objects_head();
     }
   }
 
+  ASSERT_ALIGNED((uintptr_t)(get_large_object_payload(best) + best->size), CHUNK_SIZE);
   return best;
 }
 
 static struct freelist*
 obtain_small_objects(enum chunk_kind kind) {
-  struct large_object *obj = allocate_large_object(0);
-  if (!obj) {
-    return NULL;
+  struct freelist** whole_chunk_freelist = &small_object_freelists[GRANULES_32];
+  void *chunk;
+  if (*whole_chunk_freelist) {
+    chunk = *whole_chunk_freelist;
+    *whole_chunk_freelist = (*whole_chunk_freelist)->next;
+  } else {
+    chunk = allocate_large_object(0);
+    if (!chunk) {
+      return NULL;
+    }
   }
-  char *ptr = allocate_chunk(get_page(obj), get_chunk_index(obj), kind);
+  char *ptr = allocate_chunk(get_page(chunk), get_chunk_index(chunk), kind);
   char *end = ptr + CHUNK_SIZE;
   struct freelist *next = NULL;
   size_t size = chunk_kind_to_granules(kind) * GRANULE_SIZE;
@@ -377,6 +454,8 @@ free(void *ptr) {
     struct large_object *obj = get_large_object(ptr);
     obj->next = large_objects;
     large_objects = obj;
+    allocate_chunk(page, chunk, FREE_LARGE_OBJECT);
+    pending_large_object_compact = 1;
   } else {
     size_t granules = kind;
     struct freelist **loc = get_small_object_freelist(granules);
