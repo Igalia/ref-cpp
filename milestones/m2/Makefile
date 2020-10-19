@@ -20,8 +20,12 @@ test.wasm: test.o walloc.o
 walloc.o: walloc.c
 	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
 
-test.o: test.wat
-	$(WAT2WASM) --enable-all --relocatable -o $@ $<
+test.o: test.S
+	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
+
+# Alternately:
+# test.o: test.wat
+# 	$(WAT2WASM) --enable-all --relocatable -o $@ $<
 
 .PHONY: clean
 clean:

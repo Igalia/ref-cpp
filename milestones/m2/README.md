@@ -23,6 +23,13 @@ The [test.wat](./test.wat) was originally produced by running wabt's
 `wasm2wat` on the result of compiling m1's (or m0's; they are the same)
 [test.c](../m1/test.c).  It was then cleaned up manually.
 
+It turns out that later in [m3](../m3/) we realize that because LLVM
+will need some extensions, it's more useful in the short term to be able
+to work on the LLVM level, we also translated m1's `test.c` to LLVM
+assembly using `clang -Ox --target=wasm32 -nostdlib -S -o test.S
+test.c`.  The [`test.wat`](./test.wat) file and the [`test.S`](./test.S)
+file are equivalent.
+
 ## Details
 
 The difference from [m0](../m0) is that we translated the former
