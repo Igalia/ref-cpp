@@ -11,103 +11,103 @@
         .text
 
 freelist:
-        ;; struct freelist { uint32_t handle; struct freelist *next; };
+        # struct freelist { uint32_t handle; struct freelist *next; };
         .globaltype freelist, i32
 
-;;; Pop a handle off the freelist.  Precondition: freelist non-empty.
+## Pop a handle off the freelist.  Precondition: freelist non-empty.
 freelist_pop:
         .hidden freelist_pop
         .globl freelist_pop
         .type freelist_pop,@function
         .functype       freelist_pop () -> (i32)
-        ;; Abort if the freelist is empty.
+        # Abort if the freelist is empty.
         global.get freelist
         i32.eqz
         if
         unreachable
         end_if
-        ;; Return value is the handle from the head of the freelist.
+        # Return value is the handle from the head of the freelist.
         global.get freelist
         i32.load 0
-        ;; Push old freelist head.
+        # Push old freelist head.
         global.get freelist
-        ;; Set $freelist to the old head's "next" link.
+        # Set $freelist to the old head's "next" link.
         global.get freelist
         i32.load 4
         global.set freelist
-        ;; Free the old head; the handle return value remains on the stack.
+        # Free the old head; the handle return value remains on the stack.
         call free
         end_function
 
-;;; Push a handle onto the freelist.  May call out_of_memory.
+## Push a handle onto the freelist.  May call out_of_memory.
 freelist_push:
         .hidden freelist_push
         .globl freelist_push
         .type freelist_push,@function
         .functype freelist_push (i32) -> ()
-        .local i32              ; new_head
-        ;; Allocate a new head.
+        .local i32              # new_head
+        # Allocate a new head.
         i32.const 8
         call malloc
         local.tee 1
         
-        ;; If the malloc failed, signal the runtime, then abort.
+        # If the malloc failed, signal the runtime, then abort.
         i32.eqz
         if
         call out_of_memory
         unreachable
         end_if
 
-        ;; Link new freelist head to old freelist.
+        # Link new freelist head to old freelist.
         local.get 1
         global.get freelist
         i32.store 4
 
-        ;; Initialize handle for new freelist head.
+        # Initialize handle for new freelist head.
         local.get 1
         local.get 0
         i32.store 0
 
-        ;; Set new head as $freelist.
+        # Set new head as $freelist.
         local.get 1
         global.set freelist
         end_function
 
-;; Linear memory references externref values by putting them into the
-;; object table, then referring to them via index.  We use the word
-;; "handle" to refer to an externref's index into the object table.
+# Linear memory references externref values by putting them into the
+# object table, then referring to them via index.  We use the word
+# "handle" to refer to an externref's index into the object table.
 objects:
         .tabletype objects,externref
         
-;; When we need to intern a new externref into the object table, we get
-;; the handle by popping it off a freelist.  Every free slot in the
-;; table is on the freelist.  If the freelist is empty, then first we
-;; expand the table, pushing new handles for each new slot onto the free
-;; list.
+# When we need to intern a new externref into the object table, we get
+# the handle by popping it off a freelist.  Every free slot in the
+# table is on the freelist.  If the freelist is empty, then first we
+# expand the table, pushing new handles for each new slot onto the free
+# list.
 expand_table:
         .hidden expand_table
         .globl expand_table
         .type expand_table,@function
         .functype expand_table () -> ()
-        .local i32              ; old_size
-        .local i32              ; end
+        .local i32              # old_size
+        .local i32              # end
         table.size objects
         local.set 0
-        ;; Grow the table by (old_size >> 1) + 1.
+        # Grow the table by (old_size >> 1) + 1.
         ref.null extern
         local.get 0
         i32.const 1
         i32.shr_u
         i32.const 1
         table.grow objects
-        ;; If growing the table failed, signal the runtime, then abort.
+        # If growing the table failed, signal the runtime, then abort.
         i32.const -1
         i32.eq
         if
         call out_of_memory
         unreachable
         end_if
-        ;; Push freelist entries for new slots.
+        # Push freelist entries for new slots.
         table.size objects
         local.set 1
         loop
@@ -126,13 +126,13 @@ expand_table:
         br 0
         end_function
 
-;;; Put $obj into the object table, returning a fresh handle.
+## Put $obj into the object table, returning a fresh handle.
 intern:
         .hidden intern
         .globl intern
         .type intern,@function
         .functype intern (externref) -> (i32)
-        .local i32              ; handle
+        .local i32              # handle
         global.get freelist
         i32.eqz
         if
@@ -146,13 +146,13 @@ intern:
         local.get 1
         end_function
 
-;;; Release the slot in the object table corresponding to $handle.
+## Release the slot in the object table corresponding to $handle.
 release:
         .hidden release
         .globl release
         .type release,@function
         .functype       release (i32) -> ()
-        ;; If $handle was -1 (invalid), just ignore it.
+        # If $handle was -1 (invalid), just ignore it.
         local.get 0
         i32.const -1
         i32.eq
@@ -189,9 +189,9 @@ make_obj:
         .no_dead_strip  make_obj
         .type   make_obj,@function
         .functype       make_obj () -> (i32)
-        .local          i32     ; obj
-        ;; Allocate a new object in linear memory.  If that fails,
-        ;; signal the runtime, and then abort.
+        .local          i32     # obj
+        # Allocate a new object in linear memory.  If that fails,
+        # signal the runtime, and then abort.
         i32.const       4
         call    malloc
         i32.eqz
@@ -199,7 +199,7 @@ make_obj:
         call    out_of_memory
         unreachable
         end_if
-        ;; Initialize callback handle -1 (invalid) for fresh object.
+        # Initialize callback handle -1 (invalid) for fresh object.
         local.get       0
         i32.const       -1
         i32.store       0
@@ -214,7 +214,7 @@ free_obj:
         .no_dead_strip  free_obj
         .type   free_obj,@function
         .functype       free_obj (i32) -> ()
-        ;; Release the callback handle.
+        # Release the callback handle.
         local.get       0
         i32.load        0
         call release
@@ -230,11 +230,11 @@ attach_callback:
         .no_dead_strip  attach_callback
         .type   attach_callback,@function
         .functype       attach_callback (i32, externref) -> ()
-        ;; Release old handle.
+        # Release old handle.
         local.get       0
         i32.load        0
         call release
-        ;; Intern the new callback, and store handle to object.
+        # Intern the new callback, and store handle to object.
         local.get       0
         local.get       1
         call intern
