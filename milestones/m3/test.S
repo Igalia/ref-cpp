@@ -89,8 +89,7 @@ expand_table:
         .globl expand_table
         .type expand_table,@function
         .functype expand_table () -> ()
-        .local i32              # old_size
-        .local i32              # end
+        .local i32,i32          # old_size, end
         table.size objects
         local.set 0
         # Grow the table by (old_size >> 1) + 1.
@@ -116,7 +115,7 @@ expand_table:
         i32.eq
         if
         return
-        end
+        end_if
         local.get 1
         i32.const 1
         i32.sub
@@ -124,6 +123,7 @@ expand_table:
         local.get 1
         call freelist_push
         br 0
+	end_loop
         end_function
 
 ## Put $obj into the object table, returning a fresh handle.
