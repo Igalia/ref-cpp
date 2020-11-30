@@ -98,6 +98,7 @@ expand_table:
         i32.const 1
         i32.shr_u
         i32.const 1
+	i32.add
         table.grow objects
         # If growing the table failed, signal the runtime, then abort.
         i32.const -1
