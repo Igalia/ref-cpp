@@ -24,47 +24,8 @@ class LinearMemory {
 
 let finalizers = new FinalizationRegistry(f => { f(); });
 
-class ObjectTable {
-    constructor() {
-        this.objects = [];
-        this.freelist = [];
-    }
-    expand() {
-        let len = this.objects.length;
-        let grow = (len >> 1) + 1;
-        let end = len + grow;
-        this.objects.length = end;
-        while (end != len)
-            this.freelist.push(--end);
-    }
-    intern(obj) {
-        if (!this.freelist.length)
-            this.expand();
-        let handle = this.freelist.pop();
-        this.objects[handle] = obj;
-        return handle;
-    }
-    release(handle) {
-        if (handle === -1) return;
-        this.objects[handle] = null;
-        this.freelist.push(handle);
-    }
-    count() {
-        return this.objects.length - this.freelist.length;
-    }
-    ref(handle) {
-        return this.objects[handle];
-    }
-}
-
-let table = new ObjectTable;
-function invoke(handle) {
-    if (handle === -1) return;
-    return table.ref(handle)();
-}
-function release(handle) {
-    if (handle === -1) return;
-    table.release(handle);
+function invoke(callback) {
+    return callback()
 }
 function out_of_memory() {
     print('error: out of linear memory');
@@ -85,8 +46,7 @@ class WasmObject {
         finalizers.register(this, () => { nfinalized++; free_obj(obj); }, this);
     }
     attachCallback(f) {
-        let handle = table.intern(f);
-        this.wasm.exports.attach_callback(this.obj, handle);
+        this.wasm.exports.attach_callback(this.obj, f);
     }
     invokeCallback() {
         this.wasm.exports.invoke_callback(this.obj);
@@ -96,7 +56,7 @@ class WasmObject {
 let bytes = readBinaryFile("test.wasm");
 let mod = new WebAssembly.Module(bytes);
 let memory = new LinearMemory({ initial: 2, maximum: 10 });
-let rt = { release, invoke, out_of_memory };
+let rt = { invoke, out_of_memory };
 let imports = { env: memory.env(), rt }
 let instance = new WebAssembly.Instance(mod, imports);
 
