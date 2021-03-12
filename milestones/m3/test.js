@@ -71,7 +71,6 @@ function test(n) {
 
 async function main() {
     await runTestLoop(1e2, test, 1e3);
-    checkSame(nalloc - nfinalized, table.count(), "live object count");
     print(`Success; max ${nmax} objects live.`);
 }
 main()
