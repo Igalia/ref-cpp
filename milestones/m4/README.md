@@ -24,7 +24,7 @@ holder of the handle doesn't participate in a cycle.
 
 ## Details
 
-The difference from [m3](../m3) is that we made [`test.wat`](./test.wat)
+The difference from [m3](../m3) is that we made [`test.S`](./test.S)
 call out to the new `gc_alloc` routines from [`test.js`](./test.js).
 The [`test.js`](./test.js) is also more trim, as it doesn't need
 finalizer support.
@@ -37,7 +37,7 @@ reporting is a bit different, though, as we don't have the live-object
 telemetry provided by finalizers.
 
 ```
-~/src/wabt/out/gcc/Debug//wat2wasm --enable-all --relocatable -o test.o test.wat
+~/src/llvm-project/build/bin/clang -Oz -mreference-types --target=wasm32 -nostdlib -c -o test.o test.S
 ~/src/llvm-project/build/bin/wasm-ld --no-entry --allow-undefined --import-memory -o test.wasm test.o
 ~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc --experimental-wasm-reftypes test.js
 Callback after 1 allocated.
@@ -50,18 +50,6 @@ Callback after 98001 allocated.
 Callback after 99001 allocated.
 100000 total allocated.
 Success.
-```
-
-Note however that the program doesn't work in JavaScriptCore; see the
-results below for details.
-
-```
-$ make jsc.test
-~/webkit/WebKitBuild/Release/bin/jsc --useWeakRefs=true --useWebAssemblyReferences=true test.js
-Exception: CompileError: WebAssembly.Module doesn't validate: I32RemS right value type mismatch, in function at index 0 (evaluating 'new WebAssembly.Module(bytes)')
-Module@[native code]
-global code@test.js:54:33
-make: *** [Makefile:15: jsc.test] Error 3
 ```
 
 ## Results
@@ -104,18 +92,47 @@ On the other hand, not having finalizers gives us less telemetry into
 the total numbers of allocated objects.  While this can be added back,
 if it is not needed, it is just overhead.
 
-### WebKit out of date
+### WebKit brought up to date
 
-The `jsc.test` target fails, presumably due to the recent change in
-`ref.null` encoding.
+In our initial investigations, the `jsc.test` target was failing due to
+the recent change in `ref.null` encoding.  Dmitry Bezhetskov landed a number of 
+patches recently to bring WebKit up to date, and now JSC passes all of
+these tests.
+
+For details, see bugs <a
+href="https://bugs.webkit.org/show_bug.cgi?id=218331">218331</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=218744">218744</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=218885">218885</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219192">219192</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219297">219297</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219427">219427</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219595">219595</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219725">219725</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219848">219848</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=219943">219943</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220005">220005</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220007">220007</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220009">220009</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220161">220161</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220181">220181</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220235">220235</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220311">220311</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220314">220314</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220323">220323</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220890">220890</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220914">220914</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=220918">220918</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=222351">222351</a>, <a
+href="https://bugs.webkit.org/show_bug.cgi?id=222400">222400</a>, and <a
+href="https://bugs.webkit.org/show_bug.cgi?id=222779">222779</a>.
 
 ### Lower run-time overhead than m0
 
 It's not precisely a fair comparison, given that we don't have to
 explicitly run GC, we don't do finalizers, and we don't need extra
-turns, but this test takes less time for both V8 and SpiderMonkey than
-the versions that have side tables, despite the need for indirect field
-access via the `gc_ref_obj` family of functions.
+turns, but this test takes less time for all engines than the versions
+that have side tables, despite the need for indirect field access via
+the `gc_ref_obj` family of functions.
 
 ### TODO: Impact on memory overhead
 
