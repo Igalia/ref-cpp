@@ -13,37 +13,33 @@ export SRC=~/src
 
 ## LLVM
 
-We use LLVM to compile (Ref) C++ to WebAssembly.  For the initial
-milestones, upstream LLVM is sufficient, provided that it has support
-for the WebAssembly target.  However as milestones proceed, we need the
-Ref C++ extensions in our LLVM branch, which you can install like this:
+We use LLVM to compile (Ref) C++ to WebAssembly.  We need the latest
+upstream LLVM, as some features needed by this work have only landed
+recently.
 
 ```
 cd $SRC
-git clone https://github.com/pmatos/llvm-project
+git clone https://github.com/llvm/llvm-project
 cd llvm-project
-git checkout pmatos-reftypes
 mkdir build && cd build
 cmake -G 'Unix Makefiles' \
    -DLLVM_TARGETS_TO_BUILD='X86;WebAssembly' \
    -DLLVM_ENABLE_PROJECTS="clang;lld" \
-   -DCMAKE_BUILD_TYPE=Debug \
+   -DCMAKE_BUILD_TYPE=Release \
    -DLLVM_ENABLE_ASSERTIONS=On \
    -DCMAKE_EXPORT_COMPILE_COMMANDS=On \
    -DLLVM_BUILD_32_BITS=Off \
    -DLLVM_ENABLE_BINDINGS=Off \
    ../llvm/
 
-# Attention: linking takes a tremendous amount of memory. 
-# If you don't need debug information in LLVM, use 
-# -DCMAKE_BUILD_TYPE=Release
-# The build will be faster and it will take considerably less memory.
+# If you need debug information in LLVM, use -DCMAKE_BUILD_TYPE=Debug.
+# Note however that the build will take longer and use a lot of memory
+# at the link phase.
 make -j$(nproc)
 ```
 
-You might need to run that last step a few times, until the linker
-succeeds.  Once you're done, set the `LLVM` environment variable to the
-build dir; usually this is sufficient:
+Once you're done, set the `LLVM` environment variable to the build dir;
+usually this is sufficient:
 
 ```
 export LLVM=$SRC/llvm-project/build/bin

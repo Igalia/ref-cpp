@@ -16,19 +16,14 @@ show that it solves the cycle problems.  This test will also allow us to
 examine different characteristics of the proposed solution.
 
 Therefore this milestone is the same as [milestone 0](../m0/), but with
-the C program replaced with corresponding WebAssembly, and "compiled" by
-wabt's `wat2wasm` instead of by LLVM's `llc`.
+the [`test.c`](../m0/test.c) translated to WebAssembly via `clang -Ox
+--target=wasm32 -nostdlib -S -o test.S test.c`.  The resulting
+[`test.S`](./test.S) was then cleaned up manually and commented.
 
-The [test.wat](./test.wat) was originally produced by running wabt's
-`wasm2wat` on the result of compiling m1's (or m0's; they are the same)
-[test.c](../m1/test.c).  It was then cleaned up manually.
-
-It turns out that later in [m3](../m3/) we realize that because LLVM
-will need some extensions, it's more useful in the short term to be able
-to work on the LLVM level, we also translated m1's `test.c` to LLVM
-assembly using `clang -Ox --target=wasm32 -nostdlib -S -o test.S
-test.c`.  The [`test.wat`](./test.wat) file and the [`test.S`](./test.S)
-file are equivalent.
+There is also a commented [test.wat](./test.wat) file, for reference.
+The [`test.wat`](./test.wat) file and the [`test.S`](./test.S) file are
+equivalent.  The [`Makefile`](./Makefile) has a rule for alternately
+producing `test.o` from `test.wat`, via wabt's `wat2wasm`.
 
 ## Details
 
@@ -40,7 +35,7 @@ example run:
 
 ```
 $ make v8.test
-~/src/wabt/out/gcc/Debug//wat2wasm --enable-all --relocatable -o test.o test.wat
+~/src/llvm-project/build/bin/clang --target=wasm32 -nostdlib -c -o test.o test.S
 ~/src/llvm-project/build/bin/clang -Oz --target=wasm32 -nostdlib -c -o walloc.o walloc.c
 ~/src/llvm-project/build/bin/wasm-ld --no-entry --allow-undefined --import-memory -o test.wasm test.o walloc.o
 ~/src/v8/out/x64.release/d8 --harmony-weak-refs --expose-gc test.js
@@ -75,3 +70,7 @@ These were fixed in
 [#1539](https://github.com/WebAssembly/wabt/pull/1539) from us, and
 [#1527](https://github.com/WebAssembly/wabt/pull/1527) from an external
 contributor.  All of these changes are now in the main upstream branch.
+
+Note that although we initially used `wat2wasm --relocatable`, as later
+work focusses on LLVM, we now use the LLVM assembly syntax for the
+WebAssembly target.
