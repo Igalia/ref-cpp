@@ -17,8 +17,12 @@ spidermonkey.test: JS?=$(SPIDERMONKEY)
 test.wasm: test.o
 	$(LD) --no-entry --allow-undefined --import-memory -o $@ $^
 
-test.o: test.wat
-	$(WAT2WASM) --enable-all --relocatable -o $@ $<
+test.o: test.S
+	$(CC) -Oz -mreference-types --target=wasm32 -nostdlib -c -o $@ $<
+
+# Alternately:
+# test.o: test.wat
+# 	$(WAT2WASM) --enable-all --relocatable -o $@ $<
 
 .PHONY: clean
 clean:
