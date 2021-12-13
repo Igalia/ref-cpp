@@ -1,3 +1,5 @@
+target triple = "wasm32-unknown-unknown"
+
 ; Reference types
 %extern = type opaque
 %externref = type %extern addrspace(10)*
@@ -8,7 +10,7 @@
 ; External functions
 declare void @free(i8*) local_unnamed_addr
 declare i8* @malloc(i32) local_unnamed_addr
-declare void @out_of_memory() local_unnamed_addr
+declare void @out_of_memory() #1
 declare void @invoke(%externref) local_unnamed_addr
 ; Intrinsics
 declare void @llvm.trap()
@@ -83,7 +85,7 @@ good:
 ; table, then referring them via index.
 @objects = local_unnamed_addr addrspace(1) global [0 x %externref] undef
 
-define void @expand_table() {
+define void @expand_table() #3 {
   ; get current table size
   %tableptr = getelementptr [0 x %externref], [0 x %externref] addrspace(1)* @objects, i32 0, i32 0
   %tb = bitcast %externref addrspace(1)* %tableptr to i8 addrspace(1)*
@@ -175,7 +177,7 @@ end:
 
 ; allocates a new object in linear memory and if 
 ; that fails it signals the runtime and aborts
-define i32* @make_obj() {
+define i32* @make_obj() #0 {
   %ptr = call i8* @malloc(i32 4)
   %is_null = icmp eq i8* %ptr, null
   br i1 %is_null, label %oom, label %body
@@ -199,7 +201,7 @@ define void @free_obj(i32* %obj) {
   ret void
 }
 
-define void @attach_callback(i32* %obj, %externref %callback) {
+define void @attach_callback(i32* %obj, %externref %callback) #2 {
   ; release old handle
   %oldhandle = load i32, i32* %obj
   call void @release(i32 %oldhandle)
@@ -215,3 +217,8 @@ define void @invoke_callback(i32* %obj) {
   call void @invoke(%externref %v)
   ret void
 }
+
+attributes #0 = { "wasm-export-name"="make_obj" }
+attributes #1 = { "wasm-import-module"="rt" "wasm-import-name"="out_of_memory" }
+attributes #2 = { "wasm-export-name"="attach_callback" }
+attributes #3 = { "wasm-export-name"="expand_table" }

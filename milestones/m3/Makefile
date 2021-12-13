@@ -1,4 +1,5 @@
 CC?=clang
+LLC?=llc
 LD?=wasm-ld
 V8?=d8
 JSC?=jsc
@@ -7,8 +8,8 @@ WAT2WASM?=wat2wasm
 
 all: v8.test jsc.test spidermonkey.test
 
-v8.test: JS?=$(V8) --harmony-weak-refs --expose-gc --experimental-wasm-reftypes
-jsc.test: JS?=$(JSC) --useWeakRefs=true --useWebAssemblyReferences=true
+v8.test: JS?=$(V8) --expose-gc --experimental-wasm-reftypes
+jsc.test: JS?=$(JSC)
 spidermonkey.test: JS?=$(SPIDERMONKEY)
 
 .PHONY: %.test
@@ -21,12 +22,15 @@ test.wasm: test.o walloc.o
 walloc.o: walloc.c
 	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
 
-test.o: test.S
-	$(CC) -Oz -mreference-types --target=wasm32 -nostdlib -c -o $@ $<
+#test.o: test.S
+#	$(CC) -Oz -mreference-types --target=wasm32 -nostdlib -c -o $@ $<
 
 # Alternately:
 # test.o: test.wat
 # 	$(WAT2WASM) --enable-all --relocatable -o $@ $<
+# or even
+test.o: test.ll
+	$(LLC) -O3 -mattr=+reference-types -filetype=obj -o $@ $<
 
 .PHONY: clean
 clean:
