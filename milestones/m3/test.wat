@@ -124,7 +124,7 @@
   (call $release (i32.load offset=0 (local.get $obj)))
   (call $free (local.get $obj)))
 
-(func $attach_callback (export "attach_ callback")
+(func $attach_callback (export "attach_callback")
       (param $obj i32) (param $callback externref)
   ;; Release old handle.
   (call $release (i32.load offset=0 (local.get $obj)))
