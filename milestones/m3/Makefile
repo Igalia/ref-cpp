@@ -8,7 +8,7 @@ WAT2WASM?=wat2wasm
 
 all: v8.test jsc.test spidermonkey.test
 
-v8.test: JS?=$(V8) --expose-gc --experimental-wasm-reftypes
+v8.test: JS?=$(V8) --expose-gc
 jsc.test: JS?=$(JSC)
 spidermonkey.test: JS?=$(SPIDERMONKEY)
 
