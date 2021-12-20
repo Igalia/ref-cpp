@@ -31,7 +31,7 @@ make_obj:
 	# Initialize callback field.
 	local.get 0
         i32.const 0
-	ref.null extern
+	ref.null_extern
 	call gc_set_obj
 
         local.get       0
