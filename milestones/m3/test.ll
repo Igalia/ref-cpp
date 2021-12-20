@@ -228,4 +228,4 @@ attributes #1 = { noreturn "wasm-import-module"="rt" "wasm-import-name"="out_of_
 attributes #2 = { "wasm-export-name"="attach_callback" }
 attributes #3 = { "wasm-export-name"="expand_table" }
 attributes #6 = { "wasm-export-name"="invoke_callback" }
-attributes #7 = { noreturn "wasm-import-module"="rt" "wasm-import-name"="invoke" }
+attributes #7 = { "wasm-import-module"="rt" "wasm-import-name"="invoke" }
