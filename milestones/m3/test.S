@@ -93,7 +93,7 @@ expand_table:
         table.size objects
         local.set 0
         # Grow the table by (old_size >> 1) + 1.
-        ref.null extern
+        ref.null_extern
         local.get 0
         i32.const 1
         i32.shr_u
@@ -161,7 +161,7 @@ release:
         return
         end_if
         local.get 0
-        ref.null extern
+        ref.null_extern
         table.set objects
         local.get 0
         call freelist_push
@@ -176,7 +176,7 @@ handle_value:
         i32.const -1
         i32.eq
         if externref
-        ref.null extern
+        ref.null_extern
         else
         local.get 0
         table.get objects
