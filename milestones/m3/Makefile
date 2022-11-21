@@ -17,13 +17,13 @@ spidermonkey.test: JS?=$(SPIDERMONKEY)
 	$(JS) $<
 
 test.wasm: test.o walloc.o
-	$(LD) --no-entry --allow-undefined --import-memory -o $@ $^
+	$(LD) --no-entry --import-memory -o $@ $^
 
 walloc.o: walloc.c
-	$(CC) -O2 -fno-inline --target=wasm32 -nostdlib -c -o $@ $<
+	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
 
 test.o: test.ll
-	$(LLC) -O2 -mattr=+reference-types -filetype=obj -o $@ $<
+	$(LLC) -O2 --cost-kind=code-size -mattr=+reference-types -filetype=obj -o $@ $<
 
 # Alternately:
 #test.o: test.wat

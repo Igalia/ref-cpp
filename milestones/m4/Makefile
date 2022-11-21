@@ -8,7 +8,7 @@ SPIDERMONKEY?=js
 all: v8.test jsc.test spidermonkey.test
 
 v8.test: JS?=$(V8) --expose-gc
-jsc.test: JS?=$(JSC) --useWeakRefs=true --useWebAssemblyReferences=true
+jsc.test: JS?=$(JSC)
 spidermonkey.test: JS?=$(SPIDERMONKEY)
 
 .PHONY: %.test

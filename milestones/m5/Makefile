@@ -6,7 +6,7 @@ SPIDERMONKEY?=js
 
 all: v8.test jsc.test spidermonkey.test
 
-v8.test: JS?=$(V8) --harmony-weak-refs --expose-gc
+v8.test: JS?=$(V8) --expose-gc 
 jsc.test: JS?=$(JSC) --useWeakRefs=true
 spidermonkey.test: JS?=$(SPIDERMONKEY)
 
@@ -15,11 +15,11 @@ spidermonkey.test: JS?=$(SPIDERMONKEY)
 	$(JS) $<
 
 %.o: %.c
-	$(CC) -Oz --target=wasm32 -nostdlib -c -o $@ $<
+	$(CC) -Oz --target=wasm32 -mreference-types -nostdlib -c -o $@ $<
 
 test.wasm: test.o walloc.o
 	$(LD) --no-entry --import-memory -o $@ $^
 
 .PHONY: clean
 clean:
-	rm -f test.o walloc.o test.wasm
+	rm -f *.o test.wasm
