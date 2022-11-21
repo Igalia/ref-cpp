@@ -1,8 +1,7 @@
 target triple = "wasm32-unknown-unknown"
 
 ; Reference types
-%extern = type opaque
-%externref = type %extern addrspace(10)*
+%externref = type ptr addrspace(10)
 
 %funcptr = type void () addrspace(20)*
 %funcref = type i8 addrspace(20)*
@@ -17,6 +16,8 @@ declare void @invoke(%externref) local_unnamed_addr #7
 declare void @llvm.trap()
 declare i32 @llvm.wasm.table.grow.externref(i8 addrspace(1)*, %externref, i32) nounwind readonly
 declare %externref @llvm.wasm.ref.null.extern() nounwind readonly
+declare %externref @llvm.wasm.table.get.externref(i8 addrspace(1)*, i32) nounwind
+declare void @llvm.wasm.table.set.externref(i8 addrspace(1)*, i32, %externref) nounwind
 declare i32 @llvm.wasm.table.size(i8 addrspace(1)*) nounwind readonly
 
 %struct.freelist = type { i32, %struct.freelist* }
@@ -137,8 +138,7 @@ need_expand:
 
 do_intern:
   %handle = call i32 @freelist_pop()
-  %p = getelementptr [0 x %externref], [0 x %externref] addrspace(1)* @objects, i32 0, i32 %handle
-  store %externref %ref, %externref addrspace(1)* %p
+  call void @llvm.wasm.table.set.externref(i8 addrspace(1)* @objects, i32 %handle, %externref %ref)
   ret i32 %handle
 }
 
@@ -150,8 +150,7 @@ define void @release(i32 %handle) {
 
 body:
   %null = call %externref @llvm.wasm.ref.null.extern()
-  %p = getelementptr [0 x %externref], [0 x %externref] addrspace(1)* @objects, i32 0, i32 %handle
-  store %externref %null, %externref addrspace(1)* %p
+  call void @llvm.wasm.table.set.externref(i8 addrspace(1)* @objects, i32 %handle, %externref %null)
   call void @freelist_push(i32 %handle)
   br label %end
 
@@ -169,8 +168,7 @@ retnull:
   br label %end
 
 body:
-  %p = getelementptr [0 x %externref], [0 x %externref] addrspace(1)* @objects, i32 0, i32 %handle
-  %v = load %externref, %externref addrspace(1)* %p
+  %v = call %externref @llvm.wasm.table.get.externref(i8 addrspace(1)* @objects, i32 %handle)
   br label %end
 
 end:

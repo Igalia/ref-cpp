@@ -1,8 +1,7 @@
 target triple = "wasm32-unknown-unknown"
 
 ; Reference types
-%extern = type opaque
-%externref = type %extern addrspace(10)*
+%externref = type ptr addrspace(10)
 
 %funcptr = type void () addrspace(20)*
 %funcref = type i8 addrspace(20)*
