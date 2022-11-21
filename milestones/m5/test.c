@@ -12,7 +12,7 @@ typedef __SIZE_TYPE__ size_t;
 
 #define ASSERT(x) do { if (!(x)) __builtin_trap(); } while (0)
 
-typedef void __attribute__((wasm_externref)) externref;
+typedef __externref_t externref;
 
 void WASM_IMPORT(rt, invoke)(externref);
 void WASM_IMPORT(rt, out_of_memory)(void);
@@ -34,7 +34,7 @@ struct freelist {
 static struct freelist *freelist;
 
 static Handle freelist_pop (void) {
-  ASSERT(freelist != NULL);
+  ASSERT(freelist != 0x0);
   struct freelist *head = freelist;
   Handle ret = head->handle;
   freelist = head->next;
@@ -53,13 +53,14 @@ static void freelist_push (Handle h) {
   freelist = head;
 }
 
-static void __attribute__((element_type(externref))) objects;
+static externref objects[0];
 
+__attribute__((noinline))
 static void expand_table (void) {
   size_t old_size = __builtin_wasm_table_size(objects);
   size_t grow = (old_size >> 1) + 1;
   if (__builtin_wasm_table_grow(objects,
-                                __builtin_wasm_ref_null(externref),
+                                __builtin_wasm_ref_null_extern(),
                                 grow) == -1) {
     out_of_memory();
     __builtin_trap();
@@ -79,13 +80,13 @@ static Handle intern(externref obj) {
 
 static void release(Handle h) {
   if (h == -1) return;
-  __builtin_wasm_table_set(objects, ret, __builtin_wasm_ref_null(externref));
+  __builtin_wasm_table_set(objects, h, __builtin_wasm_ref_null_extern());
   freelist_push(h);
 }
 
 static externref handle_value(Handle h) {
   return h == -1
-    ? __builtin_wasm_ref_null(externref)
+    ? __builtin_wasm_ref_null_extern()
     : __builtin_wasm_table_get(objects, h);
 }
 

@@ -12,7 +12,7 @@ typedef __SIZE_TYPE__ size_t;
 
 #define ASSERT(x) do { if (!(x)) __builtin_trap(); } while (0)
 
-typedef void __attribute__((wasm_externref)) externref;
+typedef __externref_t externref;
 
 void WASM_IMPORT(rt, invoke)(externref);
 externref WASM_IMPORT(rt, gc_alloc)(size_t nobjs, size_t nbytes);
