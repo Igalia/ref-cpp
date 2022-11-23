@@ -91,15 +91,13 @@ good:
 
 define void @expand_table() #3 {
   ; get current table size
-  %tableptr = getelementptr [0 x %externref], [0 x %externref] addrspace(1)* @objects, i32 0, i32 0
-  %tb = bitcast %externref addrspace(1)* %tableptr to i8 addrspace(1)*
-  %sz = call i32 @llvm.wasm.table.size(i8 addrspace(1)* %tb)
+  %sz = call i32 @llvm.wasm.table.size(i8 addrspace(1)* @objects)
 
   ; grow the table by (old_size >> 1) + 1.
   %shf = lshr i32 %sz, 1
   %incsize = add nuw i32 %shf, 1
   %null = call %externref @llvm.wasm.ref.null.extern()
-  %ret = call i32 @llvm.wasm.table.grow.externref(i8 addrspace(1)* %tb, %externref %null, i32 %incsize)
+  %ret = call i32 @llvm.wasm.table.grow.externref(i8 addrspace(1)* @objects, %externref %null, i32 %incsize)
 
   ; if growing the table failed, signal the runtime, then abort
   %failed = icmp eq i32 %ret, -1
