@@ -31,7 +31,7 @@ struct freelist {
   struct freelist *next;
 };
 
-static struct freelist *freelist;
+static struct freelist *freelist = 0;
 
 static Handle freelist_pop (void) {
   ASSERT(freelist != 0x0);
@@ -55,7 +55,6 @@ static void freelist_push (Handle h) {
 
 static externref objects[0];
 
-__attribute__((noinline))
 static void expand_table (void) {
   size_t old_size = __builtin_wasm_table_size(objects);
   size_t grow = (old_size >> 1) + 1;
